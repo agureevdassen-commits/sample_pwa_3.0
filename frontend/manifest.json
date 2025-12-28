@@ -1,0 +1,76 @@
+{
+  "name": "Sampling - Учёт геологических проб",
+  "short_name": "Sampling",
+  "description": "PWA приложение для сканирования и учёта геологических проб в полевых условиях",
+  "start_url": "/",
+  "display": "standalone",
+  "scope": "/",
+  "background_color": "#ffffff",
+  "theme_color": "#1a472a",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%231a472a' width='192' height='192'/><text x='96' y='96' font-size='100' fill='white' text-anchor='middle' dominant-baseline='middle' font-family='system-ui' font-weight='bold'>⛏</text></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect fill='%231a472a' width='512' height='512'/><text x='256' y='256' font-size='320' fill='white' text-anchor='middle' dominant-baseline='middle' font-family='system-ui' font-weight='bold'>⛏</text></svg>",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["productivity"],
+  "screenshots": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 540 720'><rect fill='%231a472a' width='540' height='720'/><text x='270' y='360' font-size='150' fill='white' text-anchor='middle' dominant-baseline='middle'>⛏ Sampling</text></svg>",
+      "sizes": "540x720",
+      "type": "image/svg+xml",
+      "form_factor": "narrow"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Сканирование",
+      "short_name": "Сканирование",
+      "description": "Открыть модуль сканирования проб",
+      "url": "/?mode=scan",
+      "icons": [
+        {
+          "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect fill='%231a472a' width='96' height='96'/><text x='48' y='48' font-size='60' fill='white' text-anchor='middle' dominant-baseline='middle'>📹</text></svg>",
+          "sizes": "96x96",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "Список проб",
+      "short_name": "Список",
+      "description": "Просмотреть список записанных проб",
+      "url": "/?mode=list",
+      "icons": [
+        {
+          "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect fill='%231a472a' width='96' height='96'/><text x='48' y='48' font-size='60' fill='white' text-anchor='middle' dominant-baseline='middle'>📋</text></svg>",
+          "sizes": "96x96",
+          "type": "image/svg+xml"
+        }
+      ]
+    }
+  ],
+  "share_target": {
+    "action": "/share",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "files": [
+        {
+          "name": "file",
+          "accept": ["application/json"]
+        }
+      ]
+    }
+  },
+  "prefer_related_applications": false
+}
