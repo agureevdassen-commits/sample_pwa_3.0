@@ -1,0 +1,19 @@
+{
+  "name": "sampling-app",
+  "version": "1.0.0",
+  "description": "Geological sample tracking system with PWA frontend and Node.js API",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "migrate": "node migrate.js"
+  },
+  "dependencies": {
+    "pg": "^8.11.3"
+  },
+  "devDependencies": {},
+  "engines": {
+    "node": "18.x"
+  }
+}

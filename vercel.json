@@ -1,0 +1,36 @@
+{
+  "version": 2,
+  "framework": null,
+  "public": "frontend",
+  "builds": [
+    {
+      "src": "api/**/*.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/scans/bulk",
+      "dest": "/api/scans-bulk.js",
+      "methods": ["POST"]
+    },
+    {
+      "src": "/api/scans/count",
+      "dest": "/api/scans-count.js",
+      "methods": ["GET"]
+    },
+    {
+      "src": "/api/health",
+      "dest": "/api/health.js",
+      "methods": ["GET"]
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/frontend/index.html"
+    }
+  ],
+  "env": {
+    "API_KEY": "@api_key",
+    "DATABASE_URL": "@database_url"
+  }
+}
