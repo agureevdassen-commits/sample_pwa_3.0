@@ -645,7 +645,7 @@
             </div>
             <div style="flex: 1; min-width:0;">
               <label for="blockInput">Блок</label>
-              <input type="text" id="blockInput" placeholder="Номер блока" inputmode="none" />
+              <input type="text" id="blockInput" placeholder="Номер блока" inputmode="numeric" />
             </div>
           </div>
 
@@ -1165,7 +1165,7 @@
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-API-Key': 'test-key'
+            'X-API-Key': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt0c3Z0Y3hucmNoam1vYXN3cmNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY5MDU3NDMsImV4cCI6MjA4MjQ4MTc0M30.XwKk1IyExD2kZVkTTertY5nW0RYwSeWD_own46llEZY'
           },
           body: JSON.stringify(payload)
         });
