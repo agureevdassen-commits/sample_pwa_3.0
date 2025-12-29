@@ -2,7 +2,6 @@
   "version": 2,
   "framework": null,
   "public": true,
-  "buildCommand": "echo Building",
   "routes": [
     {
       "src": "/api/scans/bulk",
@@ -21,11 +20,11 @@
     },
     {
       "src": "/(.*\\..*)",
-      "dest": "/frontend/$1"
+      "dest": "/public/$1"
     },
     {
       "src": "/(.*)",
-      "dest": "/frontend/index.html"
+      "dest": "/public/index.html"
     }
   ]
 }
