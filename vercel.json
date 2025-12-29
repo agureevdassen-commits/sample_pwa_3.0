@@ -1,9 +1,10 @@
+
+vercel-correct.json
 {
   "version": 2,
   "framework": null,
-  "public": "frontend",
+  "public": true,
   "buildCommand": "echo Building",
-  "outputDirectory": "frontend",
   "routes": [
     {
       "src": "/api/scans/bulk",
