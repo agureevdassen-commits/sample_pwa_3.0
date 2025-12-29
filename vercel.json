@@ -1,15 +1,9 @@
 {
   "version": 2,
   "framework": null,
-  "buildCommand": "echo 'Frontend served from ./frontend'",
+  "public": "frontend",
+  "buildCommand": "echo Building",
   "outputDirectory": "frontend",
-  "public": true,
-  "builds": [
-    {
-      "src": "api/**/*.js",
-      "use": "@vercel/node"
-    }
-  ],
   "routes": [
     {
       "src": "/api/scans/bulk",
@@ -27,8 +21,12 @@
       "methods": ["GET", "OPTIONS"]
     },
     {
-      "src": "/(.*)",
+      "src": "/(.*\\..*)",
       "dest": "/frontend/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/frontend/index.html"
     }
   ]
 }
