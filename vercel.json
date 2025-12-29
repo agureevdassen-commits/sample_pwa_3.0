@@ -30,10 +30,5 @@
       "src": "/(.*)",
       "dest": "/frontend/$1"
     }
-  ],
-  "env": {
-    "API_KEY": "@api_key",
-    "DATABASE_URL": "@database_url",
-    "NODE_ENV": "@node_env"
-  }
+  ]
 }
