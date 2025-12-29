@@ -1,0 +1,1572 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Sampling" />
+  <meta name="theme-color" content="#1a472a" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect fill='%231a472a' width='180' height='180'/><text x='50%' y='50%' font-size='80' fill='white' text-anchor='middle' dominant-baseline='middle' font-family='system-ui'>⛏</text></svg>" />
+  <title>Sampling - Учёт проб</title>
+
+  <style>
+    :root{
+      --green1:#1a472a;
+      --green2:#2d6b42;
+      --bg:#f5f5f5;
+      --bg-dark:#1a1a1a;
+      --card:#ffffff;
+      --card-dark:#2a2a2a;
+      --text:#333;
+      --text-dark:#e0e0e0;
+      --muted:#666;
+      --muted-dark:#aaa;
+      --border:#e0e0e0;
+      --border-dark:#444;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    /* Ключевые фиксы под телефон:
+       1) Убираем overflow:hidden (он резал низ и ломал прокрутку).
+       2) Запрещаем горизонтальный скролл.
+       3) Используем динамические единицы (dvh) и safe-area.
+    */
+    html, body {
+      width: 100%;
+      max-width: 100%;
+      height: auto;
+      min-height: 100dvh;
+      overflow-x: hidden;
+      overflow-y: auto;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    body.dark-mode {
+      background: var(--bg-dark);
+      color: var(--text-dark);
+    }
+
+    /* Контейнер приложения теперь не "на весь экран фиксировано", а растёт по контенту */
+    #app {
+      width: 100%;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+
+    /* HEADER */
+    .header {
+      background: linear-gradient(135deg, var(--green1) 0%, var(--green2) 100%);
+      color: white;
+      padding: 12px 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      z-index: 50;
+    }
+
+    .header h1 {
+      font-size: 18px;
+      margin-bottom: 4px;
+    }
+
+    .sync-status {
+      font-size: 12px;
+      opacity: 0.95;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .sync-indicator {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #ffeb3b;
+      animation: pulse 1.5s infinite;
+      flex: 0 0 auto;
+    }
+
+    .sync-indicator.ok { background: #4caf50; animation: none; }
+    .sync-indicator.error { background: #f44336; animation: none; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+
+    /* THEME TOGGLE */
+    .theme-toggle {
+      position: fixed;
+      top: 64px;
+      right: 12px;
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 50%;
+      width: 36px;
+      height: 36px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      z-index: 60;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    body.dark-mode .theme-toggle { background: var(--card-dark); border-color: var(--border-dark); }
+
+    /* MAIN CONTENT */
+    .main-container {
+      width: 100%;
+      display: flex;
+      gap: 16px;
+      padding: 12px;
+      background: var(--bg);
+      overflow-x: hidden;
+      /* Важно: никаких фиксированных высот -> нормально скроллится */
+      flex: 1 1 auto;
+      align-items: flex-start;
+    }
+
+    body.dark-mode .main-container { background: var(--bg-dark); }
+
+    .left-panel {
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-width: 0; /* предотвращает горизонтальный скролл из-за flex */
+    }
+
+    /* Десктопная правая панель (список) */
+    .right-panel {
+      width: 0;
+      overflow: hidden;
+      transition: width 0.25s ease;
+      background: var(--card);
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      display: flex;
+      flex-direction: column;
+      flex: 0 0 auto;
+    }
+    body.dark-mode .right-panel { background: var(--card-dark); }
+
+    .right-panel.active {
+      width: 320px;
+      overflow: hidden;
+    }
+
+    /* Мобильная версия списка — off-canvas (не раздвигает контент и не даёт сдвиг влево/вправо) */
+    @media (max-width: 768px) {
+      .main-container {
+        flex-direction: column;
+        gap: 10px;
+        padding: 10px;
+      }
+
+      .right-panel {
+        position: fixed;
+        top: 0;
+        right: 0;
+        height: 100dvh;
+        width: min(360px, 88vw);
+        transform: translateX(110%);
+        transition: transform 0.25s ease;
+        z-index: 120;
+        border-radius: 0;
+      }
+
+      .right-panel.active {
+        transform: translateX(0);
+      }
+    }
+
+    /* Полупрозрачный фон за выезжающей панелью (моб) */
+    .drawer-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.35);
+      display: none;
+      z-index: 110;
+    }
+    .drawer-backdrop.active { display: block; }
+
+    /* SECTIONS */
+    .section {
+      background: var(--card);
+      border-radius: 8px;
+      padding: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      min-width: 0;
+    }
+    body.dark-mode .section { background: var(--card-dark); box-shadow: 0 2px 8px rgba(255,255,255,0.05); }
+
+    .section-title {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: var(--green1);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    body.dark-mode .section-title { color: #7fb3a3; }
+
+    /* VIDEO & CAMERA */
+    #videoContainer {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      background: #000;
+      border-radius: 6px;
+      overflow: hidden;
+      margin-bottom: 8px;
+    }
+    @media (min-width: 769px) {
+      #videoContainer { aspect-ratio: 4 / 3; }
+    }
+
+    #video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .camera-overlay {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 70%;
+      height: 40%;
+      border: 3px dashed rgba(255, 255, 255, 0.5);
+      border-radius: 8px;
+      pointer-events: none;
+      box-shadow: inset 0 0 20px rgba(255, 255, 255, 0.1);
+    }
+
+    .camera-overlay::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border: 2px solid rgba(76, 175, 80, 0.3);
+      border-radius: 8px;
+      animation: scanLine 2s infinite;
+    }
+
+    @keyframes scanLine {
+      0% { transform: translateY(-100%); }
+      100% { transform: translateY(100%); }
+    }
+
+    .camera-status {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: rgba(0, 0, 0, 0.6);
+      color: white;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      z-index: 10;
+    }
+
+    .camera-status.scanning { animation: pulse-status 1s infinite; }
+
+    @keyframes pulse-status {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+
+    /* FORM CONTROLS */
+    .form-group { margin-bottom: 10px; display: flex; flex-direction: column; }
+    .form-group.inline { flex-direction: row; gap: 8px; }
+    .form-group.inline > input, .form-group.inline > select { flex: 1; min-width: 0; }
+
+    label {
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 4px;
+      color: #555;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    body.dark-mode label { color: #aaa; }
+
+    input, select, textarea {
+      padding: 10px 8px;
+      border: 2px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
+      font-family: inherit;
+      background: white;
+      color: var(--text);
+      transition: border-color 0.2s, background 0.2s;
+      min-width: 0;
+    }
+    body.dark-mode input, body.dark-mode select, body.dark-mode textarea {
+      background: #333;
+      color: var(--text-dark);
+      border-color: var(--border-dark);
+    }
+
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: var(--green1);
+      box-shadow: 0 0 0 3px rgba(26, 71, 42, 0.1);
+    }
+    body.dark-mode input:focus, body.dark-mode select:focus, body.dark-mode textarea:focus {
+      box-shadow: 0 0 0 3px rgba(127, 179, 163, 0.2);
+    }
+
+    input::placeholder { color: #999; }
+    body.dark-mode input::placeholder { color: #666; }
+
+    input[type="number"]::-webkit-outer-spin-button,
+    input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+    /* BUTTONS */
+    button {
+      padding: 10px 14px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--green1) 0%, var(--green2) 100%);
+      color: white;
+      box-shadow: 0 4px 12px rgba(26, 71, 42, 0.2);
+    }
+    .btn-primary:active { transform: translateY(1px); box-shadow: 0 2px 6px rgba(26, 71, 42, 0.2); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .btn-secondary {
+      background: #f0f0f0;
+      color: #333;
+      border: 1px solid #ddd;
+    }
+    body.dark-mode .btn-secondary { background: #333; color: #e0e0e0; border-color: var(--border-dark); }
+
+    .btn-secondary:active { background: #e0e0e0; }
+    body.dark-mode .btn-secondary:active { background: #3a3a3a; }
+
+    /* STATUS MESSAGE */
+    .status-message {
+      padding: 10px;
+      border-radius: 6px;
+      font-size: 13px;
+      text-align: center;
+      font-weight: 500;
+      min-height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #666;
+      background: #f9f9f9;
+      border: 1px solid #e0e0e0;
+      word-break: break-word;
+    }
+    body.dark-mode .status-message { background: #333; color: #aaa; border-color: var(--border-dark); }
+
+    .status-message.success { background: #e8f5e9; color: #2e7d32; border-color: #81c784; }
+    body.dark-mode .status-message.success { background: #1b3a1b; color: #81c784; border-color: #2e5f2e; }
+
+    .status-message.error { background: #ffebee; color: #c62828; border-color: #ef5350; }
+    body.dark-mode .status-message.error { background: #3a1b1b; color: #ef5350; border-color: #5f2e2e; }
+
+    /* COUNTERS */
+    .counters {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      font-size: 12px;
+    }
+    @media (max-width: 600px) { .counters { grid-template-columns: 1fr; } }
+
+    .counter {
+      background: linear-gradient(135deg, #e8f5e9 0%, #f1f8e9 100%);
+      padding: 10px;
+      border-radius: 6px;
+      text-align: center;
+      border: 1px solid #c8e6c9;
+    }
+    body.dark-mode .counter { background: linear-gradient(135deg, #1b3a1b 0%, #1d3a1d 100%); border-color: #2e5f2e; }
+
+    .counter-label { color: #666; margin-bottom: 4px; font-weight: 500; }
+    body.dark-mode .counter-label { color: #aaa; }
+
+    .counter-value { font-size: 18px; font-weight: 700; color: #2e7d32; }
+    body.dark-mode .counter-value { color: #81c784; }
+
+    /* RIGHT PANEL - LIST */
+    .list-header {
+      padding: 12px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    body.dark-mode .list-header { border-bottom-color: var(--border-dark); }
+
+    .search-box { margin-bottom: 8px; }
+    .search-box input { width: 100%; }
+
+    .checkbox-group { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+    .checkbox-group input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; }
+    .checkbox-group label { margin: 0; font-size: 12px; cursor: pointer; flex: 1; text-transform: none; letter-spacing: 0; }
+
+    .scans-list { flex: 1; overflow-y: auto; padding: 8px; }
+    .scan-item {
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      margin-bottom: 6px;
+      background: #fafafa;
+      font-size: 12px;
+      transition: background 0.2s;
+      word-break: break-word;
+    }
+    body.dark-mode .scan-item { background: #333; border-color: var(--border-dark); }
+    .scan-item:active { background: #f0f0f0; }
+    body.dark-mode .scan-item:active { background: #3a3a3a; }
+
+    .scan-sample { font-weight: 600; color: var(--green1); margin-bottom: 4px; }
+    body.dark-mode .scan-sample { color: #7fb3a3; }
+
+    .scan-meta {
+      color: #999;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+    }
+    body.dark-mode .scan-meta { color: #777; }
+
+    .scan-server-id { font-size: 10px; color: #4caf50; margin-top: 4px; }
+    .scan-pending { color: #ff9800; font-weight: 600; }
+
+    .list-footer {
+      padding: 8px 12px;
+      text-align: center;
+      color: #999;
+      font-size: 12px;
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    body.dark-mode .list-footer { border-top-color: var(--border-dark); color: #777; }
+
+    /* SETTINGS */
+    .settings-section { padding: 12px 0; border-top: 1px solid var(--border); }
+    body.dark-mode .settings-section { border-top-color: var(--border-dark); }
+
+    .connection-status { display: flex; align-items: center; gap: 8px; padding: 8px 0; font-size: 12px; }
+    .connection-dot { width: 8px; height: 8px; border-radius: 50%; background: #f44336; }
+    .connection-dot.online { background: #4caf50; }
+
+    /* FOOTER STATS */
+    .footer-stats {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.25s ease;
+      background: #f9f9f9;
+      border-top: 1px solid var(--border);
+    }
+    body.dark-mode .footer-stats { background: var(--card-dark); border-top-color: var(--border-dark); }
+
+    .footer-stats.active { max-height: 220px; }
+
+    .stats-content { padding: 12px; font-size: 12px; color: var(--muted); }
+    body.dark-mode .stats-content { color: var(--muted-dark); }
+
+    .stats-row { display: flex; justify-content: space-between; margin-bottom: 6px; padding: 4px 0; gap: 10px; }
+    .stats-row strong { color: var(--text); }
+    body.dark-mode .stats-row strong { color: var(--text-dark); }
+
+    /* BOTTOM TOOLBAR — НЕ фиксирован, идёт внизу как обычный блок */
+    .bottom-toolbar {
+      display: flex;
+      gap: 8px;
+      padding: 10px 12px;
+      background: var(--card);
+      border-top: 1px solid var(--border);
+      box-shadow: 0 -2px 8px rgba(0,0,0,0.08);
+      flex: 0 0 auto;
+    }
+    body.dark-mode .bottom-toolbar { background: var(--card-dark); border-top-color: var(--border-dark); }
+
+    .bottom-toolbar button { flex: 1; font-size: 12px; }
+
+    /* MODAL */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+      padding: 12px;
+    }
+    .modal-overlay.active { display: flex; }
+
+    .modal {
+      background: var(--card);
+      border-radius: 12px;
+      padding: 20px;
+      max-width: 95vw;
+      max-height: 85vh;
+      overflow-y: auto;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+      width: 520px;
+    }
+    body.dark-mode .modal { background: var(--card-dark); }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    body.dark-mode .modal-header { border-bottom-color: var(--border-dark); }
+
+    .modal-header h2 { font-size: 16px; margin: 0; color: var(--green1); }
+    body.dark-mode .modal-header h2 { color: #7fb3a3; }
+
+    .modal-close {
+      background: none;
+      border: none;
+      font-size: 20px;
+      cursor: pointer;
+      color: #999;
+      padding: 0;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-transform: none;
+      letter-spacing: 0;
+    }
+    .modal-close:active { color: #333; }
+
+    .diagnostic-log {
+      font-family: 'Courier New', monospace;
+      font-size: 11px;
+      background: #f5f5f5;
+      padding: 10px;
+      border-radius: 6px;
+      max-height: 420px;
+      overflow-y: auto;
+      margin-bottom: 10px;
+      line-height: 1.4;
+      color: #333;
+      word-break: break-word;
+    }
+    body.dark-mode .diagnostic-log { background: #1a1a1a; color: #e0e0e0; }
+
+    .log-error { color: #d32f2f; }
+    .log-info { color: #0277bd; }
+    .log-success { color: #388e3c; }
+
+    @media (max-width: 600px) {
+      .main-container { padding: 8px; gap: 8px; }
+      .section { padding: 10px; }
+      .bottom-toolbar { padding: 8px; }
+      .bottom-toolbar button { font-size: 11px; }
+      .modal { width: 95vw; }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="app">
+    <!-- HEADER -->
+    <div class="header">
+      <h1>⛏ Сканирование проб</h1>
+      <div class="sync-status">
+        <span class="sync-indicator" id="syncIndicator"></span>
+        <span id="syncText">Инициализация...</span>
+      </div>
+    </div>
+
+    <!-- THEME TOGGLE -->
+    <button class="theme-toggle" id="themeToggle" title="Переключить тему">🌙</button>
+
+    <!-- Backdrop for mobile drawer -->
+    <div class="drawer-backdrop" id="drawerBackdrop"></div>
+
+    <!-- MAIN CONTENT -->
+    <div class="main-container">
+      <!-- LEFT PANEL -->
+      <div class="left-panel">
+        <!-- CAMERA SECTION -->
+        <div class="section">
+          <div class="section-title">Камера</div>
+          <div id="videoContainer">
+            <video id="video" playsinline autoplay muted></video>
+            <div class="camera-overlay"></div>
+            <div class="camera-status" id="cameraStatus">📹 Инициализация…</div>
+          </div>
+          <button class="btn-secondary" style="width: 100%;" id="restartCameraBtn">🔄 Перезапустить камеру</button>
+        </div>
+
+        <!-- SAMPLE INPUT SECTION -->
+        <div class="section">
+          <div class="section-title">Ввод данных пробы</div>
+
+          <div class="form-group">
+            <label for="sampleInput">Образец (штрихкод)</label>
+            <input type="text" id="sampleInput" placeholder="Отсканируйте или введите номер пробы" inputmode="none" />
+          </div>
+
+          <div class="form-group inline">
+            <div style="flex: 1; min-width:0;">
+              <label for="wellNameInput">Скважина</label>
+              <input type="number" id="wellNameInput" placeholder="Номер скважины" inputmode="numeric" />
+            </div>
+            <div style="flex: 1; min-width:0;">
+              <label for="blockInput">Блок</label>
+              <input type="text" id="blockInput" placeholder="Номер блока" inputmode="none" />
+            </div>
+          </div>
+
+          <div class="form-group inline">
+            <div style="flex: 1; min-width:0;">
+              <label for="typeSelect">Тип руды</label>
+              <select id="typeSelect">
+                <option value="">Выберите тип</option>
+                <option value="520">520</option>
+                <option value="360">360</option>
+                <option value="520/360">520/360</option>
+                <option value="Другой">Другой</option>
+              </select>
+            </div>
+          </div>
+
+          <button class="btn-primary" style="width: 100%; margin-bottom: 12px;" id="saveScanBtn">✓ Записать</button>
+
+          <div class="status-message" id="statusMessage">Ожидание сканирования…</div>
+        </div>
+
+        <!-- COUNTERS -->
+        <div class="counters">
+          <div class="counter">
+            <div class="counter-label">Сегодня</div>
+            <div class="counter-value" id="todayCount">0</div>
+          </div>
+          <div class="counter">
+            <div class="counter-label">Всего (локально)</div>
+            <div class="counter-value" id="totalCount">0</div>
+          </div>
+        </div>
+
+        <!-- EXPORT BUTTON -->
+        <button class="btn-secondary" style="width: 100%;" id="exportCsvBtn">📥 Экспорт CSV</button>
+      </div>
+
+      <!-- RIGHT PANEL -->
+      <div class="right-panel" id="rightPanel">
+        <div class="list-header">
+          <div class="section-title">Записанные пробы</div>
+          <div class="search-box">
+            <input type="text" id="searchInput" placeholder="Поиск по Sample/Скважине" />
+          </div>
+          <div class="checkbox-group">
+            <input type="checkbox" id="pendingOnlyCheckbox" />
+            <label for="pendingOnlyCheckbox">Только несинхронизированные</label>
+          </div>
+        </div>
+
+        <div class="scans-list" id="scansList"></div>
+
+        <div class="list-footer">
+          <span id="scansCount">Записей: 0</span>
+        </div>
+
+        <div class="settings-section" style="padding: 12px;">
+          <label for="operatorNameInput">Пользователь</label>
+          <input type="text" id="operatorNameInput" placeholder="Имя оператора" style="margin-top: 6px;" />
+          <div class="connection-status" id="connectionStatus" style="margin-top: 12px;">
+            <span class="connection-dot online"></span>
+            <span>✅ Онлайн</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FOOTER STATS -->
+    <div class="footer-stats" id="footerStats">
+      <div class="stats-content">
+        <div class="stats-row">
+          <span>Всего записей (локально):</span>
+          <strong id="statsTotal">0</strong>
+        </div>
+        <div class="stats-row">
+          <span>Сегодня:</span>
+          <strong id="statsToday">0</strong>
+        </div>
+        <div class="stats-row">
+          <span>Последний блок:</span>
+          <strong id="statsLastBlock">-</strong>
+        </div>
+        <div class="stats-row">
+          <span>На сервере:</span>
+          <strong id="statsServerCount">-</strong>
+        </div>
+        <div class="stats-row" style="margin-top: 12px; font-size: 11px; opacity: 0.7;">
+          <span>Версия PWA</span>
+          <strong id="versionText">1.0.0 PWA - Локальное хранилище + SQL синхронизация</strong>
+        </div>
+        <div class="stats-row" style="font-size: 11px; opacity: 0.7;">
+          <span>Build</span>
+          <strong id="buildText">-</strong>
+        </div>
+      </div>
+    </div>
+
+    <!-- BOTTOM TOOLBAR (в потоке, доступен прокруткой) -->
+    <div class="bottom-toolbar">
+      <button class="btn-secondary" id="toggleListBtn">📋 Пробы</button>
+      <button class="btn-secondary" id="toggleStatsBtn">📊 Статистика</button>
+      <button class="btn-secondary" id="diagnosticsBtn">⚙ Диагностика</button>
+    </div>
+  </div>
+
+  <!-- MODAL: DIAGNOSTICS -->
+  <div class="modal-overlay" id="diagnosticsModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Диагностика</h2>
+        <button class="modal-close" id="diagnosticsCloseBtn">✕</button>
+      </div>
+      <div id="diagnosticLogContainer" class="diagnostic-log"></div>
+      <button class="btn-secondary" style="width: 100%; margin-top: 8px;" id="clearLogBtn">🗑 Очистить журнал</button>
+    </div>
+  </div>
+
+  <!-- ZXing -->
+  <script src="https://unpkg.com/@zxing/library@latest"></script>
+
+  <script>
+    // ========================================
+    // CONFIGURATION & CONSTANTS
+    // ========================================
+    const APP_VERSION = '1.0.0';
+    const BUILD_DATE = '2025-12-28T09:50:47Z';
+    const BUILD_HASH = '2113b4a995';
+
+    // Важно: для телефона по Wi-Fi поменяйте localhost на IP ПК (например http://192.168.1.100:3000)
+    const API_BASE_URL = ''; // Пусто = относительные пути /api/
+    const API_TIMEOUT = 10000;
+    const SYNC_INTERVAL = 30000;
+
+    const DB_NAME = 'sampling_scans_db_v2';
+    const DB_VERSION = 1;
+
+    // ========================================
+    // STATE
+    // ========================================
+    let db = null;
+    let codeReader = null;
+    let videoStream = null;
+    let isOnline = navigator.onLine;
+    let lastScannedBarcode = null;
+    let lastServerCount = 0;
+    let syncIntervalId = null;
+    let darkMode = localStorage.getItem('darkMode') === 'true';
+
+    // ========================================
+    // LOGGER
+    // ========================================
+    const logger = {
+      MAX_LOGS: 100,
+      log(level, message) {
+        const ts = new Date();
+        const entry = { ts: ts.getTime(), level, message };
+        try { db_module.addLog(entry).catch(() => {}); } catch(e) {}
+        console.log(`[${level.toUpperCase()}]`, message);
+      },
+      info(msg) { this.log('info', msg); },
+      error(msg) { this.log('error', msg); },
+      success(msg) { this.log('success', msg); }
+    };
+
+    // ========================================
+    // INDEXED DB MODULE
+    // ========================================
+    const db_module = {
+      instance: null,
+
+      async init() {
+        return new Promise((resolve, reject) => {
+          const req = indexedDB.open(DB_NAME, DB_VERSION);
+
+          req.onupgradeneeded = (e) => {
+            const db = e.target.result;
+
+            if (!db.objectStoreNames.contains('scans')) {
+              const scansStore = db.createObjectStore('scans', { keyPath: 'id', autoIncrement: true });
+              scansStore.createIndex('sync_status', 'sync_status', { unique: false });
+              scansStore.createIndex('scanned_at', 'scanned_at', { unique: false });
+              scansStore.createIndex('sample', 'sample', { unique: false });
+            }
+
+            if (!db.objectStoreNames.contains('logs')) {
+              db.createObjectStore('logs', { keyPath: 'id', autoIncrement: true });
+            }
+          };
+
+          req.onsuccess = () => {
+            this.instance = req.result;
+            logger.info('IndexedDB инициализирована');
+            resolve(this.instance);
+          };
+
+          req.onerror = () => {
+            logger.error('Ошибка инициализации IndexedDB: ' + req.error);
+            reject(req.error);
+          };
+        });
+      },
+
+      async addScan(scan) {
+        return new Promise((resolve, reject) => {
+          const tx = this.instance.transaction(['scans'], 'readwrite');
+          const store = tx.objectStore('scans');
+          const req = store.add(scan);
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => reject(req.error);
+        });
+      },
+
+      async getAllScans() {
+        return new Promise((resolve, reject) => {
+          const tx = this.instance.transaction(['scans'], 'readonly');
+          const store = tx.objectStore('scans');
+          const req = store.getAll();
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => reject(req.error);
+        });
+      },
+
+      async getPendingScans() {
+        return new Promise((resolve, reject) => {
+          const tx = this.instance.transaction(['scans'], 'readonly');
+          const store = tx.objectStore('scans');
+          const index = store.index('sync_status');
+          const req = index.getAll('pending');
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => reject(req.error);
+        });
+      },
+
+      async markSynced(pairs) {
+        if (!pairs || pairs.length === 0) return;
+        return new Promise((resolve, reject) => {
+          const tx = this.instance.transaction(['scans'], 'readwrite');
+          const store = tx.objectStore('scans');
+          let done = 0;
+          let failed = false;
+
+          pairs.forEach(({ localId, serverId }) => {
+            const req = store.get(localId);
+            req.onsuccess = () => {
+              const scan = req.result;
+              if (!scan) {
+                done++;
+                if (done === pairs.length && !failed) resolve();
+                return;
+              }
+              scan.sync_status = 'synced';
+              scan.server_id = serverId;
+              const updateReq = store.put(scan);
+              updateReq.onsuccess = () => {
+                done++;
+                if (done === pairs.length && !failed) resolve();
+              };
+              updateReq.onerror = (e) => {
+                failed = true;
+                reject(e.target.error);
+              };
+            };
+            req.onerror = (e) => {
+              failed = true;
+              reject(e.target.error);
+            };
+          });
+        });
+      },
+
+      async addLog(entry) {
+        return new Promise((resolve, reject) => {
+          const tx = this.instance.transaction(['logs'], 'readwrite');
+          const store = tx.objectStore('logs');
+          const req = store.add(entry);
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => reject(req.error);
+        });
+      },
+
+      async getLogs(limit = 100) {
+        return new Promise((resolve, reject) => {
+          const tx = this.instance.transaction(['logs'], 'readonly');
+          const store = tx.objectStore('logs');
+          const req = store.getAll();
+          req.onsuccess = () => {
+            let logs = req.result || [];
+            if (logs.length > limit) logs = logs.slice(logs.length - limit);
+            resolve(logs);
+          };
+          req.onerror = () => reject(req.error);
+        });
+      },
+
+      async clearLogs() {
+        return new Promise((resolve, reject) => {
+          const tx = this.instance.transaction(['logs'], 'readwrite');
+          const store = tx.objectStore('logs');
+          const req = store.clear();
+          req.onsuccess = () => resolve();
+          req.onerror = () => reject(req.error);
+        });
+      }
+    };
+
+    // ========================================
+    // VALIDATION & DB OPERATIONS
+    // ========================================
+    function saveScanToDb(scan) {
+      // STRICT VALIDATION: только отсюда допускаем запись
+      if (!scan.sample || scan.sample.trim() === '') return false;
+      if (!scan.block || scan.block.trim() === '') return false;
+      if (!scan.well_name || scan.well_name.trim() === '') return false;
+
+      scan.scanned_at = Date.now();
+      scan.sync_status = 'pending';
+      scan.is_test = !!scan.is_test;
+
+      db_module.addScan(scan)
+        .then(id => logger.success(`Проба записана (ID: ${id}): ${scan.sample}`))
+        .catch(err => logger.error(`Ошибка записи в БД: ${err && err.message ? err.message : err}`));
+
+      return true;
+    }
+
+    // ========================================
+    // CAMERA CONTROL
+    // ========================================
+    async function initCamera() {
+      try {
+        updateCameraStatus('📹 Инициализация…');
+        if (!window.ZXing || !ZXing.BrowserMultiFormatReader) {
+          updateCameraStatus('🔴 ZXing не загрузился');
+          return;
+        }
+        if (!codeReader) codeReader = new ZXing.BrowserMultiFormatReader();
+
+        // reset previous
+        try { await codeReader.reset(); } catch(e) {}
+
+        // decodeFromVideoDevice сам выбирает девайс (обычно заднюю камеру)
+        await codeReader.decodeFromVideoDevice(undefined, 'video', (result, err) => {
+          if (result) handleBarcodeScanned(result.text);
+          // err игнорируем (ZXing часто кидает NotFoundException пока не увидит код)
+        });
+
+        updateCameraStatus('🟢 Сканирует', 'scanning');
+        logger.info('Камера инициализирована');
+      } catch (err) {
+        logger.error(`Ошибка камеры: ${err && err.message ? err.message : err}`);
+        updateCameraStatus('🔴 Ошибка камеры');
+      }
+    }
+
+    function updateCameraStatus(text, className = '') {
+      const el = document.getElementById('cameraStatus');
+      el.textContent = text;
+      el.className = 'camera-status' + (className ? (' ' + className) : '');
+    }
+
+    async function stopCamera() {
+      try {
+        if (codeReader) await codeReader.reset();
+        if (videoStream) {
+          videoStream.getTracks().forEach(track => track.stop());
+          videoStream = null;
+        }
+        updateCameraStatus('⭕ Отключена');
+      } catch (err) {
+        logger.error(`Ошибка отключения камеры: ${err && err.message ? err.message : err}`);
+      }
+    }
+
+    function handleBarcodeScanned(text) {
+      lastScannedBarcode = String(text || '').trim();
+      const sampleInput = document.getElementById('sampleInput');
+      sampleInput.value = lastScannedBarcode;
+      showStatus(`Отсканировано: ${lastScannedBarcode}`, 'success');
+
+      // В этот момент НЕ пишем в IndexedDB — только заполняем поле.
+      playBeep();
+      vibrate(120);
+
+      // Можно остановить сканирование, чтобы не ловило повторно
+      stopCamera();
+      sampleInput.focus();
+      logger.success(`Отсканировано: ${lastScannedBarcode}`);
+    }
+
+    // ========================================
+    // USER ACTIONS
+    // ========================================
+    function processScan() {
+      const sampleEl = document.getElementById('sampleInput');
+      const blockEl = document.getElementById('blockInput');
+      const wellEl = document.getElementById('wellNameInput');
+      const typeEl = document.getElementById('typeSelect');
+      const operatorEl = document.getElementById('operatorNameInput');
+
+      const sample = (sampleEl.value || '').trim();
+      const block = (blockEl.value || '').trim();
+      const wellName = (wellEl.value || '').trim();
+      const type = (typeEl.value || '').trim();
+      const operatorName = (operatorEl.value || '').trim();
+
+      if (!sample) {
+        showStatus('Введите Sample или отсканируйте', 'error');
+        sampleEl.focus();
+        return;
+      }
+      if (!block) {
+        showStatus('Заполните поле "Блок"', 'error');
+        blockEl.focus();
+        return;
+      }
+      if (!wellName) {
+        showStatus('Заполните поле "Скважина"', 'error');
+        wellEl.focus();
+        return;
+      }
+
+      // Сохраняем блок как "последний"
+      localStorage.setItem('lastBlock', block);
+
+      const scan = {
+        sample,
+        well_name: wellName,
+        block,
+        type: type || 'Не указан',
+        scanned_by: operatorName || 'Неизвестный оператор',
+        sync_status: 'pending',
+        is_test: false
+      };
+
+      const ok = saveScanToDb(scan);
+      if (!ok) {
+        showStatus('Запись не выполнена: проверьте обязательные поля', 'error');
+        return;
+      }
+
+      showStatus(`✓ Записано: ${sample} | Скв: ${wellName} | Блок: ${block} | Тип: ${scan.type}`, 'success');
+
+      // beep + вибрация после успешной записи
+      playBeep();
+      vibrate(120);
+
+      // Очистка полей: Sample и Скважина (по вашему запросу)
+      sampleEl.value = '';
+      wellEl.value = ''; // <-- ВАЖНО: очищаем поле "Скважина"
+      lastScannedBarcode = null;
+
+      refreshScans();
+      updateStats();
+
+      if (isOnline) syncPendingScans();
+
+      sampleEl.focus();
+      initCamera();
+    }
+
+    function showStatus(message, type = 'default') {
+      const el = document.getElementById('statusMessage');
+      el.textContent = message;
+      el.className = 'status-message';
+      if (type && type !== 'default') el.classList.add(type);
+    }
+
+    function playBeep() {
+      try {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+
+        oscillator.frequency.value = 800;
+        oscillator.type = 'sine';
+
+        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.1);
+      } catch (e) {}
+    }
+
+    function vibrate(duration = 100) {
+      if (navigator.vibrate) navigator.vibrate(duration);
+    }
+
+    // ========================================
+    // DATA SYNC
+    // ========================================
+    async function syncPendingScans() {
+      try {
+        const pending = await db_module.getPendingScans();
+        if (!pending || pending.length === 0) {
+          updateSyncIndicator();
+          return;
+        }
+
+        const deviceId = getOrCreateDeviceId();
+        const payload = pending.map(scan => ({
+          device_id: deviceId,
+          sample: scan.sample,
+          well_name: scan.well_name,
+          block: scan.block,
+          type: scan.type,
+          scanned_at: scan.scanned_at,
+          scanned_by: scan.scanned_by,
+          is_test: !!scan.is_test,
+          local_id: scan.id
+        }));
+
+        const response = await fetch(`${API_BASE_URL}/api/scans/bulk`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': 'test-key'
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const result = await response.json();
+
+        const serverIds = Array.isArray(result.server_ids) ? result.server_ids : [];
+        const pairs = pending.map((scan, idx) => ({
+          localId: scan.id,
+          serverId: serverIds[idx] ?? null
+        })).filter(p => p.serverId !== null);
+
+        await db_module.markSynced(pairs);
+
+        if (typeof result.total_on_server === 'number') lastServerCount = result.total_on_server;
+        logger.success(`Синхронизировано ${pairs.length} / ${pending.length} записей`);
+
+        refreshScans();
+        updateSyncIndicator();
+        updateStats();
+      } catch (err) {
+        logger.error(`Ошибка синхронизации: ${err && err.message ? err.message : err}`);
+        updateSyncIndicator();
+      }
+    }
+
+    function getOrCreateDeviceId() {
+      let deviceId = localStorage.getItem('deviceId');
+      if (!deviceId) {
+        deviceId = 'device_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
+        localStorage.setItem('deviceId', deviceId);
+      }
+      return deviceId;
+    }
+
+    // ========================================
+    // UI REFRESH
+    // ========================================
+    async function refreshScans() {
+      const scans = await db_module.getAllScans();
+      const searchQuery = (document.getElementById('searchInput').value || '').toLowerCase();
+      const pendingOnly = document.getElementById('pendingOnlyCheckbox').checked;
+
+      let filtered = scans || [];
+      if (pendingOnly) filtered = filtered.filter(s => s.sync_status === 'pending');
+
+      if (searchQuery) {
+        filtered = filtered.filter(s =>
+          String(s.sample || '').toLowerCase().includes(searchQuery) ||
+          String(s.well_name || '').toLowerCase().includes(searchQuery)
+        );
+      }
+
+      const listContainer = document.getElementById('scansList');
+      listContainer.innerHTML = '';
+
+      filtered
+        .sort((a,b) => (b.scanned_at || 0) - (a.scanned_at || 0))
+        .forEach(scan => {
+          const item = document.createElement('div');
+          item.className = 'scan-item';
+
+          const status = scan.sync_status === 'pending'
+            ? '<span class="scan-pending">⏳ Ожидание</span>'
+            : '';
+
+          const serverId = scan.server_id
+            ? `<div class="scan-server-id">✓ Сервер: ${scan.server_id}</div>`
+            : '';
+
+          const date = new Date(scan.scanned_at || Date.now()).toLocaleString('ru-RU');
+
+          item.innerHTML = `
+            <div class="scan-sample">${escapeHtml(scan.sample || '')} ${status}</div>
+            <div class="scan-meta">
+              <span>Скв: ${escapeHtml(scan.well_name || '')}</span>
+              <span>Тип: ${escapeHtml(scan.type || '')}</span>
+            </div>
+            <div class="scan-meta">
+              <span>Блок: ${escapeHtml(scan.block || '')}</span>
+              <span>${escapeHtml(date)}</span>
+            </div>
+            ${serverId}
+          `;
+          listContainer.appendChild(item);
+        });
+
+      document.getElementById('scansCount').textContent = `Записей: ${filtered.length}`;
+      updateSyncIndicator();
+    }
+
+    async function updateStats() {
+      const scans = await db_module.getAllScans();
+      const list = (scans || []).filter(s => !s.is_test);
+
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      const todayMs = today.getTime();
+
+      const todayScans = list.filter(s => (s.scanned_at || 0) >= todayMs);
+      const lastBlock = list.length > 0 ? list[list.length - 1].block : (localStorage.getItem('lastBlock') || '-');
+
+      document.getElementById('todayCount').textContent = todayScans.length;
+      document.getElementById('totalCount').textContent = list.length;
+
+      document.getElementById('statsTotal').textContent = list.length;
+      document.getElementById('statsToday').textContent = todayScans.length;
+      document.getElementById('statsLastBlock').textContent = lastBlock || '-';
+      document.getElementById('statsServerCount').textContent = (lastServerCount || '-') + '';
+      document.getElementById('buildText').textContent = `${BUILD_HASH} / ${BUILD_DATE}`;
+      document.getElementById('versionText').textContent = `${APP_VERSION} PWA - Локальное хранилище + SQL синхронизация`;
+    }
+
+    async function updateSyncIndicator() {
+      const pending = await db_module.getPendingScans();
+      const allScans = await db_module.getAllScans();
+
+      const pendingCount = (pending || []).length;
+      const totalCount = (allScans || []).length;
+
+      const indicator = document.getElementById('syncIndicator');
+      const text = document.getElementById('syncText');
+
+      if (pendingCount > 0) {
+        indicator.className = 'sync-indicator';
+        text.textContent = `⇅ локально ${totalCount}, в ожидании ${pendingCount} / сервер ${lastServerCount || '?'}`;
+      } else {
+        indicator.className = 'sync-indicator ok';
+        text.textContent = `⇅ локально ${totalCount}, в ожидании 0 / сервер ${lastServerCount || '?'}`;
+      }
+    }
+
+    // ========================================
+    // EXPORT CSV
+    // ========================================
+    async function exportCsv() {
+      try {
+        const scans = await db_module.getAllScans();
+        const list = (scans || []);
+
+        if (list.length === 0) {
+          logger.error('Нет данных для экспорта');
+          showStatus('Нет данных для экспорта', 'error');
+          return;
+        }
+
+        const headers = ['Sample','Скважина','Тип','Блок','Дата','Сотрудник','SyncStatus','ServerID','IsTest'];
+        const rows = list.map(s => [
+          s.sample || '',
+          s.well_name || '',
+          s.type || '',
+          s.block || '',
+          new Date(s.scanned_at || Date.now()).toLocaleString('ru-RU'),
+          s.scanned_by || '',
+          s.sync_status || '',
+          s.server_id || '',
+          s.is_test ? 'true' : 'false'
+        ]);
+
+        let csv = headers.map(h => `"${String(h).replace(/"/g,'""')}"`).join(',') + '\n';
+        rows.forEach(row => {
+          csv += row.map(cell => `"${String(cell).replace(/"/g,'""')}"`).join(',') + '\n';
+        });
+
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', `sampling_${Date.now()}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        logger.success(`Экспортировано ${list.length} записей`);
+        showStatus(`CSV экспортирован: ${list.length} записей`, 'success');
+
+        // после экспорта — перезапуск камеры
+        initCamera();
+      } catch (err) {
+        logger.error(`Ошибка экспорта: ${err && err.message ? err.message : err}`);
+        showStatus('Ошибка экспорта CSV', 'error');
+      }
+    }
+
+    // ========================================
+    // DIAGNOSTICS
+    // ========================================
+    async function openDiagnostics() {
+      const logs = await db_module.getLogs(100);
+      const logContainer = document.getElementById('diagnosticLogContainer');
+
+      if (!logs || logs.length === 0) {
+        logContainer.innerHTML = '<div style="opacity: 0.5;">Журнал пуст</div>';
+        return;
+      }
+
+      let html = '';
+      logs.forEach(log => {
+        const date = new Date(log.ts).toLocaleString('ru-RU');
+        const level = String(log.level || 'info').toLowerCase();
+        const className = `log-${level}`;
+        html += `<div class="${className}">${escapeHtml(date)} [${escapeHtml(level.toUpperCase())}]: ${escapeHtml(log.message || '')}</div>`;
+      });
+
+      logContainer.innerHTML = html;
+      logContainer.scrollTop = logContainer.scrollHeight;
+    }
+
+    // ========================================
+    // THEME
+    // ========================================
+    function toggleTheme() {
+      darkMode = !darkMode;
+      localStorage.setItem('darkMode', darkMode ? 'true' : 'false');
+      applyTheme();
+    }
+
+    function applyTheme() {
+      if (darkMode) {
+        document.body.classList.add('dark-mode');
+        document.getElementById('themeToggle').textContent = '☀️';
+      } else {
+        document.body.classList.remove('dark-mode');
+        document.getElementById('themeToggle').textContent = '🌙';
+      }
+    }
+
+    // ========================================
+    // NETWORK STATUS
+    // ========================================
+    window.addEventListener('online', () => {
+      isOnline = true;
+      updateConnectionStatus();
+      syncPendingScans();
+      logger.info('Соединение восстановлено');
+    });
+
+    window.addEventListener('offline', () => {
+      isOnline = false;
+      updateConnectionStatus();
+      logger.info('Соединение потеряно');
+    });
+
+    function updateConnectionStatus() {
+      const statusEl = document.getElementById('connectionStatus');
+      if (!statusEl) return;
+
+      if (isOnline) {
+        statusEl.innerHTML = '<span class="connection-dot online"></span><span>✅ Онлайн (данные синхронизируются)</span>';
+      } else {
+        statusEl.innerHTML = '<span class="connection-dot"></span><span>🔴 Офлайн (записи сохраняются в телефоне)</span>';
+      }
+    }
+
+    // ========================================
+    // PERSISTENT DATA
+    // ========================================
+    function loadPersistentData() {
+      const lastBlock = localStorage.getItem('lastBlock');
+      if (lastBlock) document.getElementById('blockInput').value = lastBlock;
+
+      const operatorName = localStorage.getItem('operatorName');
+      if (operatorName) document.getElementById('operatorNameInput').value = operatorName;
+    }
+
+    // ========================================
+    // HELPERS
+    // ========================================
+    function escapeHtml(str) {
+      return String(str)
+        .replaceAll('&','&amp;')
+        .replaceAll('<','&lt;')
+        .replaceAll('>','&gt;')
+        .replaceAll('"','&quot;')
+        .replaceAll("'","&#039;");
+    }
+
+    function toggleListPanel() {
+      const panel = document.getElementById('rightPanel');
+      const backdrop = document.getElementById('drawerBackdrop');
+      const isActive = panel.classList.toggle('active');
+
+      // backdrop только на мобильном (но можно и на десктопе — не мешает)
+      if (window.matchMedia('(max-width: 768px)').matches) {
+        backdrop.classList.toggle('active', isActive);
+      } else {
+        backdrop.classList.remove('active');
+      }
+    }
+
+    function closeListPanel() {
+      const panel = document.getElementById('rightPanel');
+      const backdrop = document.getElementById('drawerBackdrop');
+      panel.classList.remove('active');
+      backdrop.classList.remove('active');
+    }
+
+    // ========================================
+    // EVENT LISTENERS
+    // ========================================
+    document.getElementById('saveScanBtn').addEventListener('click', processScan);
+    document.getElementById('sampleInput').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') processScan();
+    });
+
+    document.getElementById('restartCameraBtn').addEventListener('click', async () => {
+      logger.info('Ручной перезапуск камеры');
+      await stopCamera();
+      await initCamera();
+    });
+
+    document.getElementById('exportCsvBtn').addEventListener('click', exportCsv);
+
+    document.getElementById('toggleListBtn').addEventListener('click', () => {
+      toggleListPanel();
+      refreshScans();
+    });
+
+    document.getElementById('drawerBackdrop').addEventListener('click', closeListPanel);
+
+    document.getElementById('toggleStatsBtn').addEventListener('click', () => {
+      document.getElementById('footerStats').classList.toggle('active');
+    });
+
+    document.getElementById('diagnosticsBtn').addEventListener('click', () => {
+      document.getElementById('diagnosticsModal').classList.add('active');
+      openDiagnostics();
+    });
+
+    document.getElementById('diagnosticsCloseBtn').addEventListener('click', () => {
+      document.getElementById('diagnosticsModal').classList.remove('active');
+    });
+
+    document.getElementById('diagnosticsModal').addEventListener('click', (e) => {
+      if (e.target === document.getElementById('diagnosticsModal')) {
+        document.getElementById('diagnosticsModal').classList.remove('active');
+      }
+    });
+
+    document.getElementById('clearLogBtn').addEventListener('click', async () => {
+      await db_module.clearLogs();
+      logger.info('Журнал очищен');
+      openDiagnostics();
+    });
+
+    document.getElementById('themeToggle').addEventListener('click', toggleTheme);
+
+    document.getElementById('searchInput').addEventListener('input', refreshScans);
+    document.getElementById('pendingOnlyCheckbox').addEventListener('change', refreshScans);
+
+    document.getElementById('operatorNameInput').addEventListener('change', (e) => {
+      localStorage.setItem('operatorName', e.target.value || '');
+    });
+
+    // ========================================
+    // INITIALIZATION
+    // ========================================
+    async function init() {
+      try {
+        applyTheme();
+
+        db = await db_module.init();
+        loadPersistentData();
+
+        updateConnectionStatus();
+        await refreshScans();
+        await updateStats();
+        await updateSyncIndicator();
+
+        // Камера
+        await initCamera();
+
+        // Периодическая синхронизация
+        syncIntervalId = setInterval(() => {
+          if (isOnline) syncPendingScans();
+        }, SYNC_INTERVAL);
+
+        logger.success('Приложение инициализировано');
+
+        // Register service worker
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.register('service-worker.js')
+            .then(() => logger.info('Service Worker зарегистрирован'))
+            .catch(err => logger.error('Ошибка регистрации Service Worker: ' + err.message));
+        }
+      } catch (err) {
+        logger.error('Ошибка инициализации: ' + (err && err.message ? err.message : err));
+        alert('Ошибка инициализации приложения: ' + (err && err.message ? err.message : err));
+      }
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', init);
+    } else {
+      init();
+    }
+  </script>
+</body>
+</html>
